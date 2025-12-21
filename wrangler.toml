@@ -1,0 +1,5 @@
+name = "vortiq-ai-hub"
+main = "functions/api/ai-proxy.js"
+
+[assets]
+directory = "."
