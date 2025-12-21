@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vortiq AI Hub | Free AI Models | Vortiqlabs.com</title>
+<link rel="stylesheet" href="style.css">
+
+<!-- Full Favicon Set for PWA Support -->
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+
+</head>
+<body>
+<header>
+<h1>Vortiq AI Hub by Vortiqlabs</h1>
+</header>
+<main class="container">
+<div class="adsense-banner">
+<p style="color: #666; font-size: 12px;">[Advertisement]</p>
+<!-- Replace this line with your AdSense script after approval -->
+<!-- Example: <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXX" crossorigin="anonymous"></script> -->
+</div>
+<select id="model-select">
+  <!-- EXTERNAL APIs (need keys) -->
+  <option value="gemini">Gemini-2.0-Flash (Text + Vision)</option>
+  <option value="kimi">Kimi-K2-Instruct (Text Search)</option>
+  <option value="deepseek">DeepSeek-Chat (Creative Text)</option>
+  <option value="flux">FLUX-schnell (Image Generation)</option>
+
+  <!-- 100 % FREE CLOUDFLARE WORKERS AI (no keys) -->
+  <option value="cf-deepseek">CF DeepSeek-r1-distill-qwen-32b (FREE)</option>
+  <option value="cf-mobilellama">CF MobileLlama-1B (FREE)</option>
+  <option value="cf-flan">CF Google Flan-T5-Small (FREE)</option>
+</select>
+<div id="chat-window">
+<div class="bot-message welcome-message">
+<p><strong>Welcome to Vortiq AI.</strong> Select a model above to begin.</p>
+<p><em>Tip: Select 'Gemini' to upload images for analysis, or 'FLUX' to generate new images.</em></p>
+</div>
+</div>
+<div class="input-area">
+<input type="text" id="prompt-input" placeholder="Type your message here...">
+<input type="file" id="image-upload" accept="image/*" style="display: none;">
+<button id="upload-btn" title="Upload Image (Gemini Only)">📷</button>
+<button id="send-btn">Send</button>
+</div>
+<p id="status-text" style="text-align: center; font-size: 0.8em; color: #888; margin-top: 5px;"></p>
+</main>
+<div class="footer-links">
+<a href="/about.html">About the Founder</a> |
+<a href="/terms.html">Terms & Conditions</a> |
+<a href="/privacy.html">Privacy Policy</a>
+</div>
+<script src="chat.js"></script>
+<script src="cookie-consent.js"></script>
+</body>
+</html>

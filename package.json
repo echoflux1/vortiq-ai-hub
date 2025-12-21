@@ -1,0 +1,9 @@
+{
+"name": "vortiq-ai-hub",
+"version": "1.0.0",
+"private": true,
+"scripts": {
+"build": "echo 'No build step required'"
+},
+"description": "Vortiq AI Hub - Multi-model AI chat interface by Vortiqlabs"
+}
