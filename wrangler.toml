@@ -1,4 +1,5 @@
 name = "vortiq-ai-hub"
+compatibility_date = "2025-12-22"
 main = "functions/api/ai-proxy.js"
 
 [assets]
