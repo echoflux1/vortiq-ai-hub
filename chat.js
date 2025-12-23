@@ -105,7 +105,7 @@ clearInputs();
 const loadingMessage = appendBotMessage('Processing...');
 
 try {
-const response = await fetch('/api/ai-proxy', {
+const response = await fetch('./api/ai-proxy', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -233,4 +233,5 @@ statusText.textContent = '';
 statusText.style.color = '#888';
 }
 });
+
 
