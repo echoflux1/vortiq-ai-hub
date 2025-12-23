@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentBase64Image = null;
   let isCoolingDown = false;
-  let lastPrompt = null;
 
   // Sanitization function to prevent XSS
   function sanitizeInput(input) {
@@ -186,4 +185,3 @@ document.addEventListener('DOMContentLoaded', () => {
     statusText.style.color = '#888';
   }
 });
-
