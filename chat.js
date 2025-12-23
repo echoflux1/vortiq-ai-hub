@@ -106,15 +106,13 @@ const loadingMessage = appendBotMessage('Processing...');
 
 try {
 const response = await fetch('/api/ai-proxy', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
-model: model,
-prompt: sanitizedPrompt,
-base64Image: currentBase64Image
-})
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    prompt: sanitizedPrompt,  // Send ONLY prompt (CF models handle it)
+    // base64Image not needed for CF models (yet)
+  })
 });
-
 if (!response.ok) {
 throw new Error(`Server Error: ${response.status}`);
 }
@@ -235,3 +233,4 @@ statusText.textContent = '';
 statusText.style.color = '#888';
 }
 });
+
