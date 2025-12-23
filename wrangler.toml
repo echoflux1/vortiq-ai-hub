@@ -1,6 +1,6 @@
 name = "vortiq-ai-hub"
 compatibility_date = "2025-12-22"
-main = "functions/api/ai-proxy.js"
 
-[assets]
-directory = "."
+[functions]
+# This tells Pages: your worker is at /functions/ai-proxy.js
+# It will auto-route /api/* requests to this file
