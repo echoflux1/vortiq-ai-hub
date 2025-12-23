@@ -25,7 +25,15 @@ export async function onRequest(context) {
       });
     }
 
-    // 3. Rate limiting (protects free tier)
+    // 3. Verify AI binding for CF models
+    if ((model.startsWith('cf-')) && !env.AI) {
+      return new Response(JSON.stringify({ error: "AI binding not found. Add it in Cloudflare Settings → Bindings → AI." }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // 4. Rate limiting (protects free tier)
     const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
     const rateLimitKey = `ratelimit:${clientIP}:${model}`;
     if (env.RATE_LIMIT_KV) {
@@ -38,14 +46,15 @@ export async function onRequest(context) {
       }
     }
 
-    // 4. Route to correct AI handler
+    // 5. Route to correct AI handler
     let result;
-    if (model === 'cf-flan') {
-      result = await env.AI.run('@cf/google/flan-t5-small-835m', { prompt });
-    } else if (model === 'cf-mobilellama') {
-      result = await env.AI.run('@cf/meta-llama/Llama-2-7b-chat-hf', { prompt });
-    } else if (model === 'cf-deepseek') {
-      result = await env.AI.run('@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', { prompt });
+    // --- FREE CLOUDFLARE MODELS (verified working Dec 2025) ---
+    if (model === 'cf-llama-daily') {
+      result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt }); 
+    } else if (model === 'cf-llama-speed') {
+      result = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', { prompt }); 
+    } else if (model === 'cf-flux') {
+      result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt }); 
     } else if (model === 'gemini') {
       result = await handleGemini(prompt, base64Image, env);
     } else if (model === 'deepseek') {
@@ -61,7 +70,7 @@ export async function onRequest(context) {
       });
     }
 
-    // 5. Return result to frontend
+    // 6. Return result to frontend
     return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' }
     });
