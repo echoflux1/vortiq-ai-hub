@@ -190,4 +190,6 @@ async function handleCF(modelId, prompt, env) {
 const ai = env.AI; // Cloudflare gives this for free
 const answer = await ai.run(modelId, { prompt });
 return { response: answer.response || answer };
+
 }
+  }
