@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await response.json();
-      chatWindow.removeChild(loadingMessage.parentElement);
+      chatWindow.removeChild(loadingMessage); // FIX: Remove the node itself, not parentElement
 
       if (data.error) {
         appendBotMessage(`Error: ${data.error}`, true);
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
     } catch (error) {
-      chatWindow.removeChild(loadingMessage.parentElement);
+      chatWindow.removeChild(loadingMessage); // FIX: Same here
       appendBotMessage(`Connection Failed: ${error.message}`, true);
     } finally {
       isCoolingDown = true;
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     msgDiv.innerHTML = isError ? `<span style="color:#ff6b6b">${text}</span>` : text.replace(/\n/g, '<br>');
     chatWindow.appendChild(msgDiv);
     chatWindow.scrollTop = chatWindow.scrollHeight;
-    return msgDiv;
+    return msgDiv; // Returns the div itself
   }
 
   function appendImageResult(base64Image) {
