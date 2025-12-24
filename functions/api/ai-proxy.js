@@ -111,17 +111,20 @@ async function checkRateLimit(kv, key, limit, window) {
 // ---------- CF FLUX IMAGE HANDLER (DIFFERENT FROM TEXT) ----------
 async function handleCFFlux(prompt, env) {
   try {
+    // CF Flux takes 20-30 seconds on first call (cold start)
     const result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
       prompt: prompt,
-      guidance_scale: 7.5, // Image quality
-      num_steps: 4         // Speed mode
+      guidance_scale: 7.5,
+      num_steps: 4
     });
     
-    // CF returns raw bytes, convert to base64
-    const base64String = btoa(String.fromCharCode(...new Uint8Array(result)));
+    // Convert ArrayBuffer → base64
+    const bytes = new Uint8Array(result);
+    const base64String = btoa(String.fromCharCode(...bytes));
+    
     return { base64Image: base64String };
   } catch (err) {
-    return { error: `CF Flux Error: ${err.message}` };
+    return { error: `CF Flux failed: ${err.message}. Try again in 30s.` };
   }
 }
 
@@ -222,3 +225,4 @@ async function handleFlux(prompt, env) {
   const base64String = btoa(String.fromCharCode(...bytes));
   return { base64Image: base64String };
 }
+
