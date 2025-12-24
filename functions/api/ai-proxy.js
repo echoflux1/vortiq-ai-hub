@@ -32,141 +32,71 @@ export async function onRequest(context) {
     if (env.RATE_LIMIT_KV) {
       const canProceed = await checkRateLimit(env.RATE_LIMIT_KV, rateLimitKey, 10, 60);
       if (!canProceed) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded." }), {
+        return new Response(JSON.stringify({ error: "Too many requests. Try again later." }), {
           status: 429,
           headers: { 'Content-Type': 'application/json' }
         });
       }
     }
 
-    // Route to handler
     let result;
-    
-    // --- FREE CLOUDFLARE MODELS ---
-    if (model === 'cf-llama-daily') {
-      result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt });
-    } else if (model === 'cf-llama-speed') {
-      result = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', { prompt });
+
+    // Model Routing
+    if (model === 'cf-llama-3.1-8b') {
+      result = await handleLlama(prompt, env, '@cf/meta/llama-3.1-8b-instruct');
+    } else if (model === 'cf-llama-3.3-70b') {
+      result = await handleLlama(prompt, env, '@cf/meta/llama-3.3-70b-instruct');
     } else if (model === 'cf-flux') {
-      result = await handleCFFlux(prompt, env);
-    }
-    
-    // --- EXTERNAL APIs (with fallback) ---
-    else if (model === 'gemini') {
-      result = await handleGemini(prompt, base64Image, env);
-      if (result.error?.code === 'quota') result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt });
+      // ✅ Updated Logic: Flux returns an object with a base64 string already.
+      const aiResponse = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt });
+      result = { base64Image: aiResponse.image }; 
     } else if (model === 'deepseek') {
       result = await handleDeepSeek(prompt, env);
-      if (result.error?.code === 'exhausted') result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt });
     } else if (model === 'kimi') {
       result = await handleKimi(prompt, env);
-      if (result.error?.code === 'limit') result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt });
-    } else if (model === 'flux') {
-      result = await handleFlux(prompt, env); // HuggingFace (paid)
     } else {
-      return new Response(JSON.stringify({ error: "Invalid model" }), {
+      return new Response(JSON.stringify({ error: "Unsupported model" }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
     return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
     });
 
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
   }
 }
 
-// ---------- Rate Limiter ----------
-async function checkRateLimit(kv, key, limit, window) {
-  const value = await kv.get(key);
-  const count = value ? parseInt(value) : 0;
+// ---------- Helper: Rate Limiter ----------
+async function checkRateLimit(kv, key, limit, period) {
+  const current = await kv.get(key);
+  const count = current ? parseInt(current) : 0;
   if (count >= limit) return false;
-  await kv.put(key, String(count + 1), { expirationTtl: window });
+  await kv.put(key, (count + 1).toString(), { expirationTtl: period });
   return true;
 }
 
-// ---------- CF Flux Handler (Free) ----------
-async function handleCFFlux(prompt, env) {
-  try {
-    // Enhance short prompts
-    const enhancedPrompt = prompt.length < 10 
-      ? `High quality, detailed, 4k image: ${prompt}` 
-      : prompt;
-
-    const result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-      prompt: enhancedPrompt,
-      guidance_scale: 7.5,
-      num_steps: 4
-    });
-    
-    if (!result || result.byteLength === 0) {
-      return { error: 'CF Flux returned empty. Try a longer prompt or use CF Llama instead.', code: 'empty' };
-    }
-
-    const base64String = btoa(String.fromCharCode(...new Uint8Array(result)));
-    return { base64Image: base64String };
-  } catch (err) {
-    return { error: `CF Flux failed: ${err.message}`, code: 'failed' };
-  }
-}
-
-// ---------- HuggingFace Flux Handler (Paid) ----------
-async function handleFlux(prompt, env) {
-  const token = env.HF_TOKEN;
-  if (!token) return { error: 'HF_TOKEN missing. Create at huggingface.co' };
-  
-  const FLUX_MODEL = 'black-forest-labs/FLUX.1-schnell';
-  const response = await fetch(`https://api-inference.huggingface.co/models/${FLUX_MODEL}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ inputs: prompt })
+// ---------- Llama Helper ----------
+async function handleLlama(prompt, env, modelPath) {
+  const response = await env.AI.run(modelPath, {
+    messages: [{ role: 'user', content: prompt }]
   });
-  
-  if (response.status === 410) {
-    return { error: 'HuggingFace Flux deprecated. Use CF Flux or CF Llama.', code: 'deprecated' };
-  }
-  if (!response.ok) return { error: `Flux API Error: ${response.statusText}` };
-  
-  const imageBlob = await response.blob();
-  const arrayBuffer = await imageBlob.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  const base64String = btoa(String.fromCharCode(...bytes));
-  return { base64Image: base64String };
-}
-
-// ---------- Gemini Helper ----------
-async function handleGemini(prompt, base64Image, env) {
-  const apiKey = env.GEMINI_KEY;
-  if (!apiKey) return { error: 'GEMINI_KEY missing. Add balance at Google AI Studio.', code: 'missing_key' };
-  
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-  const parts = [{ text: prompt }];
-  if (base64Image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: parts }] })
-  });
-  
-  const data = await response.json();
-  if (data.error?.code === 429) return { error: 'Gemini quota exhausted.', code: 'quota' };
-  return { response: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.' };
+  return { response: response.response || response.choices?.[0]?.message?.content || "No response" };
 }
 
 // ---------- DeepSeek Helper ----------
 async function handleDeepSeek(prompt, env) {
-  const apiKey = env.DEEPSEEK_KEY;
-  if (!apiKey) return { error: 'DEEPSEEK_KEY missing. Add balance at platform.deepseek.com', code: 'missing_key' };
+  const apiKey = env.DEEPSEEK_TOKEN;
+  if (!apiKey) return { error: 'DEEPSEEK_TOKEN missing. Add balance at platform.deepseek.com', code: 'missing_key' };
   
   const response = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -203,6 +133,5 @@ async function handleKimi(prompt, env) {
   });
   
   const data = await response.json();
-  if (data.error?.code === 'rate_limit_exceeded') return { error: 'Kimi quota exhausted.', code: 'exhausted' };
   return { response: data.choices?.[0]?.message?.content || 'Error: Kimi returned empty.' };
 }
