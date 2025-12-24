@@ -10,17 +10,21 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentBase64Image = null;
   let isCoolingDown = false;
 
-  // Sanitization function to prevent XSS
+  // Sanitization
   function sanitizeInput(input) {
     const div = document.createElement('div');
     div.textContent = input;
     return div.innerHTML;
   }
 
-  // Toggle Upload Button (CF models don't need images)
+  // Model selection
   modelSelect.addEventListener('change', () => {
-    const selectedModel = modelSelect.value;
-    if (selectedModel === 'gemini') {
+    const model = modelSelect.value;
+    // Show upload only for HuggingFace Flux (paid)
+    if (model === 'flux') {
+      uploadBtn.style.display = 'block';
+      promptInput.placeholder = 'Describe the image you want to generate...';
+    } else if (model === 'gemini') {
       uploadBtn.style.display = 'block';
       promptInput.placeholder = 'Type message or upload an image...';
     } else {
@@ -31,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     statusText.textContent = '';
   });
 
-  // Handle Image Upload (only for Gemini, disabled for CF)
+  // Image upload (for paid models only)
   uploadBtn.addEventListener('click', () => imageUpload.click());
   imageUpload.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -58,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Handle Send
+  // Send handler
   sendBtn.addEventListener('click', handleSend);
   promptInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleSend();
@@ -90,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     appendUserMessage(sanitizedPrompt, currentBase64Image);
     clearInputs();
 
+    // Loading text
     const loadingText = (model === 'cf-flux') 
       ? 'Generating image (30 seconds)...' 
       : 'Processing...';
@@ -111,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await response.json();
-      chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
+      chatWindow.removeChild(loadingMessage); // FIXED
 
       if (data.error) {
         appendBotMessage(`Error: ${data.error}`, true);
@@ -122,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
     } catch (error) {
-      chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
+      chatWindow.removeChild(loadingMessage); // FIXED
       appendBotMessage(`Connection Failed: ${error.message}`, true);
     } finally {
       isCoolingDown = true;
@@ -160,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const msgDiv = document.createElement('div');
     msgDiv.className = isError ? 'bot-message error' : 'bot-message';
     
-    // Handle image responses
+    // Handle images
     if (text && text.startsWith('data:image/jpeg;base64,')) {
       const img = document.createElement('img');
       img.src = text;
@@ -170,18 +175,18 @@ document.addEventListener('DOMContentLoaded', () => {
       img.alt = 'Generated AI Image';
       msgDiv.appendChild(img);
     } 
-    // Handle error messages
+    // Handle errors
     else if (isError) {
       msgDiv.innerHTML = `<span style="color:#ff6b6b">⚠️ ${text}</span>`;
     }
-    // Handle regular text
+    // Handle text
     else {
       msgDiv.innerHTML = text.replace(/\n/g, '<br>');
     }
     
     chatWindow.appendChild(msgDiv);
     chatWindow.scrollTop = chatWindow.scrollHeight;
-    return msgDiv; // Return the node itself
+    return msgDiv;
   }
 
   function appendImageResult(base64Image) {
