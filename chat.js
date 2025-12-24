@@ -17,15 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML;
   }
 
-  // Toggle Upload Button Visibility
+  // Toggle Upload Button (CF models don't need images)
   modelSelect.addEventListener('change', () => {
     const selectedModel = modelSelect.value;
     if (selectedModel === 'gemini') {
       uploadBtn.style.display = 'block';
       promptInput.placeholder = 'Type message or upload an image...';
-    } else if (selectedModel === 'flux') {
-      uploadBtn.style.display = 'none';
-      promptInput.placeholder = 'Describe the image you want to generate...';
     } else {
       uploadBtn.style.display = 'none';
       promptInput.placeholder = 'Type your message here...';
@@ -34,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     statusText.textContent = '';
   });
 
-  // Handle Image Upload
+  // Handle Image Upload (only for Gemini, disabled for CF)
   uploadBtn.addEventListener('click', () => imageUpload.click());
   imageUpload.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -111,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await response.json();
-      chatWindow.removeChild(loadingMessage); // FIX: Remove the node itself, not parentElement
+      chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
 
       if (data.error) {
         appendBotMessage(`Error: ${data.error}`, true);
@@ -122,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
     } catch (error) {
-      chatWindow.removeChild(loadingMessage); // FIX: Same here
+      chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
       appendBotMessage(`Connection Failed: ${error.message}`, true);
     } finally {
       isCoolingDown = true;
@@ -162,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     msgDiv.innerHTML = isError ? `<span style="color:#ff6b6b">${text}</span>` : text.replace(/\n/g, '<br>');
     chatWindow.appendChild(msgDiv);
     chatWindow.scrollTop = chatWindow.scrollHeight;
-    return msgDiv; // Returns the div itself
+    return msgDiv; // Return the node itself
   }
 
   function appendImageResult(base64Image) {
