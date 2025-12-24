@@ -28,13 +28,7 @@
 <div class="model-selection">
 <label for="model-select">Select AI Model:</label>
 <select id="model-select">
-  <!-- EXTERNAL APIs (require keys in Cloudflare) -->
-  <option value="gemini">Gemini-2.0-Flash (Text + Vision)</option>
-  <option value="kimi">Kimi-K2-Instruct (Text Search)</option>
-  <option value="deepseek">DeepSeek-Chat (Creative Text)</option>
-  <option value="flux">FLUX-schnell (Image Generation)</option>
-
-  <!-- FREE CLOUDFLARE WORKERS AI (verified Dec 2025) -->
+  <!-- ONLY FREE CLOUDFLARE MODELS (verified Dec 2025) -->
   <option value="cf-llama-daily">CF Llama-3.1-8B-Instruct (Daily Driver)</option>
   <option value="cf-llama-speed">CF Llama-3.2-3B-Instruct (Speed Demon)</option>
   <option value="cf-flux">CF Flux-1-Schnell (Image Generation)</option>
@@ -44,14 +38,14 @@
 <div id="chat-window">
 <div class="bot-message welcome-message">
 <p><strong>Welcome to Vortiq AI.</strong> Select a model above to begin.</p>
-<p><em>Tip: Models marked "CF" are 100% free through Cloudflare Workers AI.</em></p>
+<p><em>Tip: All models are 100% free through Cloudflare Workers AI.</em></p>
 </div>
 </div>
 
 <div class="input-area">
 <input type="text" id="prompt-input" placeholder="Type your message here...">
 <input type="file" id="image-upload" accept="image/*" style="display: none;">
-<button id="upload-btn" title="Upload Image (Gemini Only)">📷</button>
+<button id="upload-btn" title="Upload Image (NOT for CF models)" style="display: none;">📷</button>
 <button id="send-btn">Send</button>
 </div>
 
