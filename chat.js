@@ -65,69 +65,75 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   async function handleSend() {
-  if (isCoolingDown) {
-    statusText.textContent = 'Please wait 3 seconds...';
-    statusText.style.color = '#ff6b6b';
-    return;
-  }
-
-  const prompt = promptInput.value.trim();
-  const model = modelSelect.value;
-
-  if (!prompt) {
-    statusText.textContent = 'Please enter a message';
-    statusText.style.color = '#ff6b6b';
-    return;
-  }
-
-  const sanitizedPrompt = sanitizeInput(prompt);
-  appendUserMessage(sanitizedPrompt, currentBase64Image);
-  clearInputs();
-
-  // Show different loading text for image generation
-  const loadingText = (model === 'cf-flux') 
-    ? 'Generating image (30 seconds)...' 
-    : 'Processing...';
-  const loadingMessage = appendBotMessage(loadingText);
-
-  try {
-    const response = await fetch('/api/ai-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model,
-        prompt: sanitizedPrompt,
-        base64Image: currentBase64Image
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    if (isCoolingDown) {
+      statusText.textContent = 'Please wait 3 seconds...';
+      statusText.style.color = '#ff6b6b';
+      return;
     }
 
-    const data = await response.json();
-    chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
+    const prompt = promptInput.value.trim();
+    const model = modelSelect.value;
 
-    if (data.error) {
-      appendBotMessage(`Error: ${data.error}`, true);
-    } else if (data.base64Image) {
-      appendImageResult(data.base64Image);
-    } else {
-      appendBotMessage(data.response || 'No response received.');
+    if (!prompt) {
+      statusText.textContent = 'Please enter a message';
+      statusText.style.color = '#ff6b6b';
+      return;
     }
 
-  } catch (error) {
-    chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
-    appendBotMessage(`Connection Failed: ${error.message}`, true);
-  } finally {
-    isCoolingDown = true;
-    setTimeout(() => {
-      isCoolingDown = false;
-      statusText.textContent = '';
-      statusText.style.color = '#888';
-    }, 3000);
+    if (prompt.length > 2000) {
+      statusText.textContent = 'Error: Message too long (max 2000 chars)';
+      statusText.style.color = '#ff6b6b';
+      return;
+    }
+
+    const sanitizedPrompt = sanitizeInput(prompt);
+    appendUserMessage(sanitizedPrompt, currentBase64Image);
+    clearInputs();
+
+    const loadingText = (model === 'cf-flux') 
+      ? 'Generating image (30 seconds)...' 
+      : 'Processing...';
+    const loadingMessage = appendBotMessage(loadingText);
+
+    try {
+      const response = await fetch('/api/ai-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: model,
+          prompt: sanitizedPrompt,
+          base64Image: currentBase64Image
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
+
+      if (data.error) {
+        appendBotMessage(`Error: ${data.error}`, true);
+      } else if (data.base64Image) {
+        appendImageResult(data.base64Image);
+      } else {
+        appendBotMessage(data.response || 'No response received.');
+      }
+
+    } catch (error) {
+      chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
+      appendBotMessage(`Connection Failed: ${error.message}`, true);
+    } finally {
+      isCoolingDown = true;
+      setTimeout(() => {
+        isCoolingDown = false;
+        statusText.textContent = '';
+        statusText.style.color = '#888';
+      }, 3000);
+    }
   }
-}
+
   function appendUserMessage(text, base64Image = null) {
     const msgDiv = document.createElement('div');
     msgDiv.className = 'user-message';
@@ -153,7 +159,26 @@ document.addEventListener('DOMContentLoaded', () => {
   function appendBotMessage(text, isError = false) {
     const msgDiv = document.createElement('div');
     msgDiv.className = isError ? 'bot-message error' : 'bot-message';
-    msgDiv.innerHTML = isError ? `<span style="color:#ff6b6b">${text}</span>` : text.replace(/\n/g, '<br>');
+    
+    // Handle image responses
+    if (text && text.startsWith('data:image/jpeg;base64,')) {
+      const img = document.createElement('img');
+      img.src = text;
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '5px';
+      img.style.border = '1px solid #CFA644';
+      img.alt = 'Generated AI Image';
+      msgDiv.appendChild(img);
+    } 
+    // Handle error messages
+    else if (isError) {
+      msgDiv.innerHTML = `<span style="color:#ff6b6b">⚠️ ${text}</span>`;
+    }
+    // Handle regular text
+    else {
+      msgDiv.innerHTML = text.replace(/\n/g, '<br>');
+    }
+    
     chatWindow.appendChild(msgDiv);
     chatWindow.scrollTop = chatWindow.scrollHeight;
     return msgDiv; // Return the node itself
@@ -179,4 +204,3 @@ document.addEventListener('DOMContentLoaded', () => {
     statusText.style.color = '#888';
   }
 });
-
