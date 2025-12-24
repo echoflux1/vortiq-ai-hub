@@ -1,4 +1,4 @@
-// PRODUCTION AI ROUTER – Handles 7 Models + Rate Limiting + Free CF AI
+// PRODUCTION AI ROUTER – Handles Text & Image Models + Auto-Fallback
 export async function onRequest(context) {
   const { request, env } = context;
   
@@ -46,27 +46,39 @@ export async function onRequest(context) {
       }
     }
 
-    // 5. Route to correct AI handler
+    // 5. Route to correct AI handler (with auto-fallback)
     let result;
-    // --- FREE CLOUDFLARE MODELS (verified working Dec 2025) ---
+    
+    // --- FREE CLOUDFLARE MODELS (verified working) ---
     if (model === 'cf-llama-daily') {
-      result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt }); 
+      result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt });
     } else if (model === 'cf-llama-speed') {
-      result = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', { prompt }); 
+      result = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', { prompt });
     } else if (model === 'cf-flux') {
-      result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { 
-  prompt: prompt,
-  guidance_scale: 7.5, // Required for Flux
-  num_steps: 4          // Speed mode
-}); 
-    } else if (model === 'gemini') {
+      result = await handleCFFlux(prompt, env);
+    }
+    
+    // --- EXTERNAL APIs (with fallback when exhausted) ---
+    else if (model === 'gemini') {
       result = await handleGemini(prompt, base64Image, env);
+      if (result.error && result.error.includes('quota')) {
+        result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt }); // Fallback
+      }
     } else if (model === 'deepseek') {
       result = await handleDeepSeek(prompt, env);
+      if (result.error && result.error.includes('exhausted')) {
+        result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt }); // Fallback
+      }
     } else if (model === 'kimi') {
       result = await handleKimi(prompt, env);
+      if (result.error && result.error.includes('limit')) {
+        result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt }); // Fallback
+      }
     } else if (model === 'flux') {
       result = await handleFlux(prompt, env);
+      if (result.error) {
+        result = await handleCFFlux(prompt, env); // Fallback to CF Flux
+      }
     } else {
       return new Response(JSON.stringify({ error: "Invalid model selected" }), {
         status: 400,
@@ -96,29 +108,53 @@ async function checkRateLimit(kv, key, limit, window) {
   return true;
 }
 
-// ---------- EXTERNAL API HELPERS ----------
+// ---------- CF FLUX IMAGE HANDLER (DIFFERENT FROM TEXT) ----------
+async function handleCFFlux(prompt, env) {
+  try {
+    const result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
+      prompt: prompt,
+      guidance_scale: 7.5, // Image quality
+      num_steps: 4         // Speed mode
+    });
+    
+    // CF returns raw bytes, convert to base64
+    const base64String = btoa(String.fromCharCode(...new Uint8Array(result)));
+    return { base64Image: base64String };
+  } catch (err) {
+    return { error: `CF Flux Error: ${err.message}` };
+  }
+}
+
+// ---------- EXTERNAL API HELPERS (with quota checks) ----------
 async function handleGemini(prompt, base64Image, env) {
   const apiKey = env.GEMINI_KEY;
-  if (!apiKey) return { error: 'GEMINI_KEY missing. Add it in Cloudflare Settings.' };
+  if (!apiKey) return { error: 'GEMINI_KEY missing. Add balance at Google AI Studio.' };
+  
   const GEMINI_MODEL = 'gemini-2.0-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
   const parts = [{ text: prompt }];
   if (base64Image) {
     parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
   }
+  
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: parts }] })
   });
+  
   const data = await response.json();
-  if (data.error) return { error: data.error.message };
+  if (data.error) {
+    if (data.error.code === '429') return { error: 'Gemini quota exhausted. Switch to CF models (free).' };
+    return { error: data.error.message };
+  }
   return { response: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.' };
 }
 
 async function handleDeepSeek(prompt, env) {
   const apiKey = env.DEEPSEEK_KEY;
-  if (!apiKey) return { error: 'DEEPSEEK_KEY missing. Add it in Cloudflare Settings.' };
+  if (!apiKey) return { error: 'DEEPSEEK_KEY missing. Add balance at platform.deepseek.com' };
+  
   const response = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: {
@@ -130,13 +166,18 @@ async function handleDeepSeek(prompt, env) {
       messages: [{ role: 'user', content: prompt }]
     })
   });
+  
   const data = await response.json();
-  return { response: data.choices?.[0]?.message?.content || 'Error: No content received.' };
+  if (data.error?.type === 'insufficient_quota') {
+    return { error: 'DeepSeek credit exhausted. Switch to CF Llama (free).' };
+  }
+  return { response: data.choices?.[0]?.message?.content || 'Error: DeepSeek returned empty.' };
 }
 
 async function handleKimi(prompt, env) {
   const apiKey = env.KIMI_TOKEN;
-  if (!apiKey) return { error: 'KIMI_TOKEN missing. Add it in Cloudflare Settings.' };
+  if (!apiKey) return { error: 'KIMI_TOKEN missing. Add balance at platform.moonshot.cn' };
+  
   const response = await fetch('https://api.moonshot.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -148,13 +189,18 @@ async function handleKimi(prompt, env) {
       messages: [{ role: 'user', content: prompt }]
     })
   });
+  
   const data = await response.json();
-  return { response: data.choices?.[0]?.message?.content || 'Error: No content received.' };
+  if (data.error?.code === 'rate_limit_exceeded') {
+    return { error: 'Kimi quota exhausted. Switch to CF Llama (free).' };
+  }
+  return { response: data.choices?.[0]?.message?.content || 'Error: Kimi returned empty.' };
 }
 
 async function handleFlux(prompt, env) {
   const token = env.HF_TOKEN;
-  if (!token) return { error: 'HF_TOKEN missing. Add it in Cloudflare Settings.' };
+  if (!token) return { error: 'HF_TOKEN missing. Create at huggingface.co' };
+  
   const FLUX_MODEL = 'black-forest-labs/FLUX.1-schnell';
   const response = await fetch(`https://api-inference.huggingface.co/models/${FLUX_MODEL}`, {
     method: 'POST',
@@ -164,11 +210,15 @@ async function handleFlux(prompt, env) {
     },
     body: JSON.stringify({ inputs: prompt })
   });
+  
+  if (response.status === 410) {
+    return { error: 'HuggingFace Flux is deprecated. Use CF Flux instead (free).' };
+  }
   if (!response.ok) return { error: `Flux API Error: ${response.statusText}` };
+  
   const imageBlob = await response.blob();
   const arrayBuffer = await imageBlob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   const base64String = btoa(String.fromCharCode(...bytes));
   return { base64Image: base64String };
 }
-
