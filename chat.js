@@ -65,72 +65,69 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   async function handleSend() {
-    if (isCoolingDown) {
-      statusText.textContent = 'Please wait 3 seconds...';
-      statusText.style.color = '#ff6b6b';
-      return;
-    }
-
-    const prompt = promptInput.value.trim();
-    const model = modelSelect.value;
-
-    if (!prompt) {
-      statusText.textContent = 'Please enter a message';
-      statusText.style.color = '#ff6b6b';
-      return;
-    }
-
-    if (prompt.length > 2000) {
-      statusText.textContent = 'Error: Message too long (max 2000 chars)';
-      statusText.style.color = '#ff6b6b';
-      return;
-    }
-
-    const sanitizedPrompt = sanitizeInput(prompt);
-    appendUserMessage(sanitizedPrompt, currentBase64Image);
-    clearInputs();
-
-    const loadingMessage = appendBotMessage('Processing...');
-
-    try {
-      const response = await fetch('/api/ai-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: model,
-          prompt: sanitizedPrompt,
-          base64Image: currentBase64Image
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
-
-      if (data.error) {
-        appendBotMessage(`Error: ${data.error}`, true);
-      } else if (data.base64Image) {
-        appendImageResult(data.base64Image);
-      } else {
-        appendBotMessage(data.response || 'No response received.');
-      }
-
-    } catch (error) {
-      chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
-      appendBotMessage(`Connection Failed: ${error.message}`, true);
-    } finally {
-      isCoolingDown = true;
-      setTimeout(() => {
-        isCoolingDown = false;
-        statusText.textContent = '';
-        statusText.style.color = '#888';
-      }, 3000);
-    }
+  if (isCoolingDown) {
+    statusText.textContent = 'Please wait 3 seconds...';
+    statusText.style.color = '#ff6b6b';
+    return;
   }
 
+  const prompt = promptInput.value.trim();
+  const model = modelSelect.value;
+
+  if (!prompt) {
+    statusText.textContent = 'Please enter a message';
+    statusText.style.color = '#ff6b6b';
+    return;
+  }
+
+  const sanitizedPrompt = sanitizeInput(prompt);
+  appendUserMessage(sanitizedPrompt, currentBase64Image);
+  clearInputs();
+
+  // Show different loading text for image generation
+  const loadingText = (model === 'cf-flux') 
+    ? 'Generating image (30 seconds)...' 
+    : 'Processing...';
+  const loadingMessage = appendBotMessage(loadingText);
+
+  try {
+    const response = await fetch('/api/ai-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model,
+        prompt: sanitizedPrompt,
+        base64Image: currentBase64Image
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
+
+    if (data.error) {
+      appendBotMessage(`Error: ${data.error}`, true);
+    } else if (data.base64Image) {
+      appendImageResult(data.base64Image);
+    } else {
+      appendBotMessage(data.response || 'No response received.');
+    }
+
+  } catch (error) {
+    chatWindow.removeChild(loadingMessage); // FIXED: Remove node directly
+    appendBotMessage(`Connection Failed: ${error.message}`, true);
+  } finally {
+    isCoolingDown = true;
+    setTimeout(() => {
+      isCoolingDown = false;
+      statusText.textContent = '';
+      statusText.style.color = '#888';
+    }, 3000);
+  }
+}
   function appendUserMessage(text, base64Image = null) {
     const msgDiv = document.createElement('div');
     msgDiv.className = 'user-message';
@@ -182,3 +179,4 @@ document.addEventListener('DOMContentLoaded', () => {
     statusText.style.color = '#888';
   }
 });
+
