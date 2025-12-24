@@ -54,7 +54,11 @@ export async function onRequest(context) {
     } else if (model === 'cf-llama-speed') {
       result = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', { prompt }); 
     } else if (model === 'cf-flux') {
-      result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt }); 
+      result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { 
+  prompt: prompt,
+  guidance_scale: 7.5, // Required for Flux
+  num_steps: 4          // Speed mode
+}); 
     } else if (model === 'gemini') {
       result = await handleGemini(prompt, base64Image, env);
     } else if (model === 'deepseek') {
@@ -167,3 +171,4 @@ async function handleFlux(prompt, env) {
   const base64String = btoa(String.fromCharCode(...bytes));
   return { base64Image: base64String };
 }
+
