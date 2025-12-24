@@ -49,7 +49,7 @@ export async function onRequest(context) {
     // 5. Route to correct AI handler (with auto-fallback)
     let result;
     
-    // --- FREE CLOUDFLARE MODELS (verified working) ---
+    // --- FREE CLOUDFLARE MODELS (verified working globally) ---
     if (model === 'cf-llama-daily') {
       result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt });
     } else if (model === 'cf-llama-speed') {
@@ -77,7 +77,7 @@ export async function onRequest(context) {
     } else if (model === 'flux') {
       result = await handleFlux(prompt, env);
       if (result.error) {
-        result = await handleCFFlux(prompt, env); // Fallback to CF Flux
+        result = await handleCFFlux(prompt, env); // Fallback to CF
       }
     } else {
       return new Response(JSON.stringify({ error: "Invalid model selected" }), {
@@ -108,23 +108,30 @@ async function checkRateLimit(kv, key, limit, window) {
   return true;
 }
 
-// ---------- CF FLUX IMAGE HANDLER (DIFFERENT FROM TEXT) ----------
+// ---------- CF FLUX IMAGE HANDLER (Regional) ----------
 async function handleCFFlux(prompt, env) {
   try {
-    // CF Flux takes 20-30 seconds on first call (cold start)
+    // CF Flux requires longer prompts (min 10 chars)
+    const enhancedPrompt = prompt.length < 10 
+      ? `High quality, detailed, 4k image: ${prompt}` 
+      : prompt;
+
     const result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-      prompt: prompt,
-      guidance_scale: 7.5,
-      num_steps: 4
+      prompt: enhancedPrompt,
+      guidance_scale: 7.5, // Image quality
+      num_steps: 4         // Speed mode
     });
     
+    // Check if result is empty
+    if (!result || result.byteLength === 0) {
+      return { error: 'CF Flux returned empty image. Try a more descriptive prompt (min 10 chars).' };
+    }
+
     // Convert ArrayBuffer → base64
-    const bytes = new Uint8Array(result);
-    const base64String = btoa(String.fromCharCode(...bytes));
-    
+    const base64String = btoa(String.fromCharCode(...new Uint8Array(result)));
     return { base64Image: base64String };
   } catch (err) {
-    return { error: `CF Flux failed: ${err.message}. Try again in 30s.` };
+    return { error: `CF Flux failed: ${err.message}. Model may not be available in your region.` };
   }
 }
 
@@ -148,7 +155,7 @@ async function handleGemini(prompt, base64Image, env) {
   
   const data = await response.json();
   if (data.error) {
-    if (data.error.code === '429') return { error: 'Gemini quota exhausted. Switch to CF models (free).' };
+    if (data.error.code === '429') return { error: 'Gemini quota exhausted. Switching to CF Llama (free).' };
     return { error: data.error.message };
   }
   return { response: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.' };
@@ -172,7 +179,7 @@ async function handleDeepSeek(prompt, env) {
   
   const data = await response.json();
   if (data.error?.type === 'insufficient_quota') {
-    return { error: 'DeepSeek credit exhausted. Switch to CF Llama (free).' };
+    return { error: 'DeepSeek credit exhausted. Switching to CF Llama (free).', code: 'exhausted' };
   }
   return { response: data.choices?.[0]?.message?.content || 'Error: DeepSeek returned empty.' };
 }
@@ -195,7 +202,7 @@ async function handleKimi(prompt, env) {
   
   const data = await response.json();
   if (data.error?.code === 'rate_limit_exceeded') {
-    return { error: 'Kimi quota exhausted. Switch to CF Llama (free).' };
+    return { error: 'Kimi quota exhausted. Switching to CF Llama (free).', code: 'exhausted' };
   }
   return { response: data.choices?.[0]?.message?.content || 'Error: Kimi returned empty.' };
 }
@@ -215,7 +222,7 @@ async function handleFlux(prompt, env) {
   });
   
   if (response.status === 410) {
-    return { error: 'HuggingFace Flux is deprecated. Use CF Flux instead (free).' };
+    return { error: 'HuggingFace Flux is deprecated. Use CF Llama models (free).', code: 'deprecated' };
   }
   if (!response.ok) return { error: `Flux API Error: ${response.statusText}` };
   
@@ -225,4 +232,3 @@ async function handleFlux(prompt, env) {
   const base64String = btoa(String.fromCharCode(...bytes));
   return { base64Image: base64String };
 }
-
