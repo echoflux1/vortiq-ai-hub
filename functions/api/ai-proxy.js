@@ -87,11 +87,19 @@ async function checkRateLimit(kv, key, limit, period) {
   return true;
 }
 
-// ---------- Llama Helper (Fixed for Llama 3.1/3.2/3.3) ----------
-async function handleLlama(messages, env, modelPath) {
-  // ✅ These models REQUIRE the messages array format
-  const response = await env.AI.run(modelPath, { messages });
-  return { response: response.response || response.choices?.[0]?.message?.content || "No response" };
+// ---------- Llama Helper (Updated for Llama 3.1/3.2/3.3) ----------
+async function handleLlama(prompt, env, modelPath) {
+  // ✅ FIX: These models require a messages array, not a prompt string
+  const response = await env.AI.run(modelPath, {
+    messages: [
+      { role: 'system', content: 'You are a helpful assistant.' }, // Optional personality
+      { role: 'user', content: prompt } // Your user's message
+    ]
+  });
+
+  // Extract the text from the new Llama response format
+  const text = response.response || response.choices?.[0]?.message?.content || "No response";
+  return { response: text };
 }
 
 // ---------- DeepSeek Helper ----------
@@ -119,3 +127,4 @@ async function handleKimi(prompt, env) {
   const data = await response.json();
   return { response: data.choices?.[0]?.message?.content || 'Error: Kimi empty.' };
 }
+
